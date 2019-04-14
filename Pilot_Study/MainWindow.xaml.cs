@@ -32,6 +32,7 @@ namespace Pilot_Study
         int userWrong;
         int systemRight;
         int systemWrong;
+        bool decreaseAngle;
         private static readonly Random getrandom = new Random();
         int angle;
         private int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
@@ -41,14 +42,20 @@ namespace Pilot_Study
         Stopwatch stopWatch = new Stopwatch();
         string currentTime = string.Empty;
 
+        //images
+        Image airspeed, attitude_outer, attitude_inner, red_arrow, altimeter;
 
         public MainWindow()
         {
+
+            angle = 0;
+            decreaseAngle = false;
+
             WindowState = WindowState.Maximized;
             InitializeComponent();
             
             //create images
-            Image airspeed = new Image();
+            airspeed = new Image();
             BitmapImage bi = new BitmapImage();
             bi.BeginInit();
             bi.UriSource = new Uri(@"C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/Airspeed_Indicator.png", UriKind.RelativeOrAbsolute);
@@ -57,7 +64,7 @@ namespace Pilot_Study
             airspeed.Width = 400;
             airspeed.Height = 400;
 
-            Image attitude_outer = new Image();
+            attitude_outer = new Image();
             BitmapImage bi2 = new BitmapImage();
             bi2.BeginInit();
             bi2.UriSource = new Uri(@"C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/attitude_outer.png", UriKind.RelativeOrAbsolute);
@@ -66,7 +73,7 @@ namespace Pilot_Study
             attitude_outer.Width = 400;
             attitude_outer.Height = 400;
 
-            Image attitude_inner = new Image();
+            attitude_inner = new Image();
             BitmapImage bi3 = new BitmapImage();
             bi3.BeginInit();
             bi3.UriSource = new Uri("C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/attitude_inner.png", UriKind.RelativeOrAbsolute);
@@ -74,13 +81,24 @@ namespace Pilot_Study
             attitude_inner.Source = bi3;
             attitude_inner.Width = 400;
             attitude_inner.Height = 400;
+    
 
-            Image altimeter = new Image();
+            red_arrow = new Image();
             BitmapImage bi4 = new BitmapImage();
             bi4.BeginInit();
-            bi4.UriSource = new Uri(@"C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/Altimeter.png", UriKind.RelativeOrAbsolute);
+            bi4.UriSource = new Uri("C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/red_arrow.png", UriKind.RelativeOrAbsolute);
             bi4.EndInit();
-            altimeter.Source = bi4;
+            red_arrow.Source = bi4;
+            red_arrow.Width = 400;
+            red_arrow.Height = 400;
+
+
+            altimeter = new Image();
+            BitmapImage bi5 = new BitmapImage();
+            bi5.BeginInit();
+            bi5.UriSource = new Uri(@"C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/Altimeter.png", UriKind.RelativeOrAbsolute);
+            bi5.EndInit();
+            altimeter.Source = bi5;
             altimeter.Width = 400;
             altimeter.Height = 400;
 
@@ -98,15 +116,22 @@ namespace Pilot_Study
             canvas.Children.Add(airspeed);
             canvas.Children.Add(attitude_inner);
             canvas.Children.Add(attitude_outer);
+            canvas.Children.Add(red_arrow);
             canvas.Children.Add(altimeter);
 
             //set locations of meters
             Canvas.SetTop(airspeed, screenHeight - airspeed.Height-100);
             Canvas.SetLeft(airspeed, 10);
-            Canvas.SetTop(attitude_inner, screenHeight - altimeter.Height - 100);
+
+            Canvas.SetTop(attitude_inner, screenHeight - attitude_inner.Height - 100);
             Canvas.SetLeft(attitude_inner, screenWidth / 2 - attitude_inner.Width/2);
-            Canvas.SetTop(attitude_outer, screenHeight - attitude_inner.Height - 100);
+
+            Canvas.SetTop(red_arrow, screenHeight - red_arrow.Height - 100);
+            Canvas.SetLeft(red_arrow, screenWidth / 2 - red_arrow.Width / 2);
+
+            Canvas.SetTop(attitude_outer, screenHeight - attitude_outer.Height - 100);
             Canvas.SetLeft(attitude_outer, screenWidth / 2 - attitude_outer.Width / 2);
+
             Canvas.SetTop(altimeter, screenHeight - altimeter.Height - 100);
             Canvas.SetRight(altimeter, 10);
 
@@ -118,11 +143,35 @@ namespace Pilot_Study
 
         }
 
+
         void dt_Tick(object sender, EventArgs e)
         {
             TimeSpan ts = stopWatch.Elapsed;
             currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
-            debugger2.Text = currentTime;
+            //debugger2.Text = currentTime;
+
+            if(angle == 45)
+            {
+                decreaseAngle = true;
+            }
+            else if(angle == -45)
+            {
+                decreaseAngle = false;
+            }
+
+            if (decreaseAngle)
+            {
+                angle--;
+            }
+            else
+            {
+                angle++;
+            }
+                
+            RotateTransform rotateTransform = new RotateTransform(angle,attitude_inner.Width/2,attitude_inner.Height/2);
+         
+            attitude_inner.RenderTransform = rotateTransform;
+            
         }
 
         //generates random number
