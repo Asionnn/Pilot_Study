@@ -16,6 +16,7 @@ using System.Timers;
 using System.Threading;
 using System.Windows.Threading;
 using System.Diagnostics;
+using System.Windows.Media.Animation;
 
 namespace Pilot_Study
 {
@@ -45,6 +46,12 @@ namespace Pilot_Study
         //images
         Image airspeed, attitude_outer, attitude_inner, red_arrow, altimeter;
 
+        //used to rotate image
+        Storyboard sb;
+
+        DoubleAnimation [] rotations = new DoubleAnimation[8];
+        DoubleAnimation prevRotation;
+
         public MainWindow()
         {
 
@@ -73,7 +80,9 @@ namespace Pilot_Study
             attitude_outer.Width = 400;
             attitude_outer.Height = 400;
 
-            attitude_inner = new Image();
+            attitude_inner = new Image() {
+                RenderTransform = new RotateTransform(0,200,200)
+            };
             BitmapImage bi3 = new BitmapImage();
             bi3.BeginInit();
             bi3.UriSource = new Uri("C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/attitude_inner.png", UriKind.RelativeOrAbsolute);
@@ -135,12 +144,133 @@ namespace Pilot_Study
             Canvas.SetTop(altimeter, screenHeight - altimeter.Height - 100);
             Canvas.SetRight(altimeter, 10);
 
+            //create timer
             dt.Tick += new EventHandler(dt_Tick);
             dt.Interval = new TimeSpan(0, 0, 0, 0, 1);
             dt.Start();
             stopWatch.Start();
 
+            sb = new Storyboard();
 
+            sb.Duration = new Duration(TimeSpan.FromSeconds(2));
+
+
+            //create default rotations
+            DoubleAnimation rotate_0_10 = new DoubleAnimation()
+            {
+                From = 0,
+                To = 10,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_20 = new DoubleAnimation()
+            {
+                From = 0,
+                To = 20,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_30 = new DoubleAnimation()
+            {
+                From = 0,
+                To = 30,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_60 = new DoubleAnimation()
+            {
+                From = 0,
+                To = 60,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_10_n = new DoubleAnimation()
+            {
+                From = 0,
+                To = -10,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_20_n = new DoubleAnimation()
+            {
+                From = 0,
+                To = -20,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_30_n = new DoubleAnimation()
+            {
+                From = 0,
+                To = -30,
+                Duration = sb.Duration
+            };
+            DoubleAnimation rotate_0_60_n = new DoubleAnimation()
+            {
+                From = 0,
+                To = -60,
+                Duration = sb.Duration
+            };
+
+            //fill array with default roatations
+            rotations[0] = rotate_0_10;
+            rotations[1] = rotate_0_20;
+            rotations[2] = rotate_0_30;
+            rotations[3] = rotate_0_60;
+            rotations[4] = rotate_0_10_n;
+            rotations[5] = rotate_0_20_n;
+            rotations[6] = rotate_0_30_n;
+            rotations[7] = rotate_0_60_n;
+
+            //initialize initial roation start
+            Storyboard.SetTarget(rotations[6], attitude_inner);
+            Storyboard.SetTargetProperty(rotations[6], new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+            sb.Children.Add(rotations[6]);
+            Resources.Add("Storyboard", sb);
+            ((Storyboard)Resources["Storyboard"]).Begin();
+
+            prevRotation = rotations[0];
+            
+            //handle key presses
+            this.KeyDown += new KeyEventHandler(MainWindow_KeyDown);
+
+
+        }
+
+        void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Right)
+            {
+                //balance meter to right
+
+                RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+                debugger2.Text = "" + currentAngle.Angle;
+
+                DoubleAnimation rotateBack = new DoubleAnimation()
+                {
+                    From = currentAngle.Angle,
+                    To = 0,
+                    Duration = sb.Duration
+                };
+          
+                Storyboard.SetTarget(rotateBack, attitude_inner);
+                Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+                sb.Children.Add(rotateBack);
+                ((Storyboard)Resources["Storyboard"]).Begin();
+                
+            }
+            else if(e.Key == Key.Left)
+            {
+                //balance meter to left
+
+                RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+                debugger2.Text = "" + currentAngle.Angle;
+
+                DoubleAnimation rotateBack = new DoubleAnimation()
+                {
+                    From = currentAngle.Angle,
+                    To = 0,
+                    Duration = sb.Duration
+                };
+
+                Storyboard.SetTarget(rotateBack, attitude_inner);
+                Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+                sb.Children.Add(rotateBack);
+                ((Storyboard)Resources["Storyboard"]).Begin();
+            }
         }
 
 
@@ -148,30 +278,6 @@ namespace Pilot_Study
         {
             TimeSpan ts = stopWatch.Elapsed;
             currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
-            //debugger2.Text = currentTime;
-
-            if(angle == 45)
-            {
-                decreaseAngle = true;
-            }
-            else if(angle == -45)
-            {
-                decreaseAngle = false;
-            }
-
-            if (decreaseAngle)
-            {
-                angle--;
-            }
-            else
-            {
-                angle++;
-            }
-                
-            RotateTransform rotateTransform = new RotateTransform(angle,attitude_inner.Width/2,attitude_inner.Height/2);
-         
-            attitude_inner.RenderTransform = rotateTransform;
-            
         }
 
         //generates random number
