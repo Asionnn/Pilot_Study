@@ -26,6 +26,13 @@ namespace Pilot_Study
     /// 
 
 
+        /*Notes*/
+        //2 per min 20 seconds in between
+        //user does not press a key at all, assign answer as ? 2 seconds before next alert
+        //capture angle when choice is made
+        //use txt files instead of sql tables now
+
+
     
     public partial class MainWindow : Window
     {
@@ -33,7 +40,10 @@ namespace Pilot_Study
         int userWrong;
         int systemRight;
         int systemWrong;
-        bool decreaseAngle;
+
+        
+
+        bool interrupted;
         private static readonly Random getrandom = new Random();
         int angle;
         private int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
@@ -56,7 +66,7 @@ namespace Pilot_Study
         {
 
             angle = 0;
-            decreaseAngle = false;
+            interrupted = false;
 
             WindowState = WindowState.Maximized;
             InitializeComponent();
@@ -152,20 +162,20 @@ namespace Pilot_Study
 
             sb = new Storyboard();
 
-            sb.Duration = new Duration(TimeSpan.FromSeconds(2));
+            sb.Duration = new Duration(TimeSpan.FromSeconds(5));
 
 
             //create default rotations
             DoubleAnimation rotate_0_10 = new DoubleAnimation()
             {
                 From = 0,
-                To = 10,
+                To = 90,
                 Duration = sb.Duration
             };
             DoubleAnimation rotate_0_20 = new DoubleAnimation()
             {
                 From = 0,
-                To = 20,
+                To = -90,
                 Duration = sb.Duration
             };
             DoubleAnimation rotate_0_30 = new DoubleAnimation()
@@ -215,18 +225,10 @@ namespace Pilot_Study
             rotations[6] = rotate_0_30_n;
             rotations[7] = rotate_0_60_n;
 
-            //initialize initial roation start
-            Storyboard.SetTarget(rotations[6], attitude_inner);
-            Storyboard.SetTargetProperty(rotations[6], new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
-            sb.Children.Add(rotations[6]);
             Resources.Add("Storyboard", sb);
-            ((Storyboard)Resources["Storyboard"]).Begin();
-
-            prevRotation = rotations[0];
-            
+       
             //handle key presses
             this.KeyDown += new KeyEventHandler(MainWindow_KeyDown);
-
 
         }
 
@@ -235,52 +237,97 @@ namespace Pilot_Study
             if (e.Key == Key.Right)
             {
                 //balance meter to right
+                interrupted = true;
 
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
-                debugger2.Text = "" + currentAngle.Angle;
-
+                
+                //set new duration so it isnt too slow when angle is smaller
+                Duration newDuration;
+                if(currentAngle.Angle > 0 && currentAngle.Angle < 45)
+                {
+                    newDuration = new Duration(TimeSpan.FromSeconds(1));
+                }
+                else
+                {
+                    newDuration = new Duration(TimeSpan.FromMilliseconds(2500));
+                }
                 DoubleAnimation rotateBack = new DoubleAnimation()
                 {
                     From = currentAngle.Angle,
                     To = 0,
-                    Duration = sb.Duration
+                    Duration = newDuration
                 };
           
-                Storyboard.SetTarget(rotateBack, attitude_inner);
-                Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
-                sb.Children.Add(rotateBack);
-                ((Storyboard)Resources["Storyboard"]).Begin();
+                if(currentAngle.Angle > 0)
+                {
+                    Storyboard.SetTarget(rotateBack, attitude_inner);
+                    Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+                    sb.Children.Add(rotateBack);
+                    ((Storyboard)Resources["Storyboard"]).Begin();
+                
+                }
                 
             }
             else if(e.Key == Key.Left)
             {
                 //balance meter to left
+                interrupted = true;
 
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
-                debugger2.Text = "" + currentAngle.Angle;
+
+                //set new duration so it isnt too slow when angle is smaller
+                Duration newDuration;
+                if (currentAngle.Angle < 0 && currentAngle.Angle > -45)
+                {
+                    newDuration = new Duration(TimeSpan.FromSeconds(1));
+                }
+                else
+                {
+                    newDuration = new Duration(TimeSpan.FromMilliseconds(2500));
+                }
 
                 DoubleAnimation rotateBack = new DoubleAnimation()
                 {
                     From = currentAngle.Angle,
                     To = 0,
-                    Duration = sb.Duration
+                    Duration = newDuration
                 };
 
-                Storyboard.SetTarget(rotateBack, attitude_inner);
-                Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
-                sb.Children.Add(rotateBack);
+                if (currentAngle.Angle < 0)
+                {
+                    Storyboard.SetTarget(rotateBack, attitude_inner);
+                    Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+                    sb.Children.Add(rotateBack);
+                    ((Storyboard)Resources["Storyboard"]).Begin();
+                }
+                
+               
+            }
+        }
+
+        void dt_Tick(object sender, EventArgs e)
+        {
+            RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+            
+            if(currentAngle.Angle == 0)
+            {
+                interrupted = false;
+            }
+
+            TimeSpan ts = stopWatch.Elapsed;
+            currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
+            if(ts.Milliseconds % 2 == 0 && !interrupted)
+            {
+                interrupted = true;
+                int index = GetRandomNumber(0, 2);
+                Storyboard.SetTarget(rotations[index], attitude_inner);
+                Storyboard.SetTargetProperty(rotations[index], new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+                sb.Children.Add(rotations[index]);
                 ((Storyboard)Resources["Storyboard"]).Begin();
             }
         }
 
-
-        void dt_Tick(object sender, EventArgs e)
-        {
-            TimeSpan ts = stopWatch.Elapsed;
-            currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
-        }
-
-        //generates random number
+        //generates random number use 1-10
         public static int GetRandomNumber(int min, int max)
         {
             lock (getrandom) // synchronize
