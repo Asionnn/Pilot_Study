@@ -26,8 +26,9 @@ namespace Pilot_Study
     /// 
 
 
-        /*Notes*/
+        /*Notes/TODO*/
         //2 per min 20 seconds in between
+        //create algorithm to assign messages to certain times
         //user does not press a key at all, assign answer as ? 2 seconds before next alert
         //capture angle when choice is made
         //use txt files instead of sql tables now
@@ -40,11 +41,11 @@ namespace Pilot_Study
         int userWrong;
         int systemRight;
         int systemWrong;
-        int angle;
         
         bool interrupted;
-        bool isTrial = false;
-        bool alertActive = false;
+        bool isTrial;
+        bool alertActive;
+        bool startDelay;
 
         private static readonly Random getrandom = new Random();
        
@@ -69,11 +70,17 @@ namespace Pilot_Study
         DoubleAnimation [] rotations = new DoubleAnimation[2];
         DoubleAnimation prevRotation;
 
+        AlertMessage[] alertMessages = new AlertMessage[40];
+
+       
+
         public MainWindow()
         {
 
-            angle = 0;
+            isTrial = false;
+            alertActive = false;
             interrupted = false;
+            startDelay = false;
 
             WindowState = WindowState.Maximized;
             InitializeComponent();
@@ -253,6 +260,8 @@ namespace Pilot_Study
             Canvas.SetLeft(startBtn, screenWidth / 2 - startBtn.Width/2);
             Canvas.SetTop(trainBtn, screenHeight / 2 - trainBtn.Height*2);
             Canvas.SetLeft(trainBtn, screenWidth / 2 - trainBtn.Width/2);
+
+            initMessages();
         }
 
         private void startBtn_Click(object sender, RoutedEventArgs e)
@@ -372,7 +381,12 @@ namespace Pilot_Study
             TimeSpan ts = stopWatch.Elapsed;
             currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
 
-            if(ts.Milliseconds % 2 == 0 && !interrupted)
+            if(ts.Seconds > 1)
+            {
+                startDelay = true;
+            }
+
+            if(startDelay && ts.Milliseconds % 1 == 0 && !interrupted)
             {
                 interrupted = true;
                 int index = GetRandomNumber(0, 2);
@@ -384,7 +398,57 @@ namespace Pilot_Study
             }
         }
 
-        //generates random number use 1-10
+
+       //initializes all 40 messages and randomizes their positions
+       public void initMessages()
+        {
+            int[] certainties = { 0 ,30, 50, 80 };
+            int pos = 0;
+            int cpos = 0;
+
+            for(int x = 0; x < 4; x++)
+            {
+               for(int y = 0; y < 10; y++)
+                {
+                    if(y <= 6)
+                    {
+                        if(cpos == 0)
+                        {
+                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT", true);
+                        }
+                        else
+                        {
+                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT: "+ certainties[cpos] + "% CERTAINTY", true);
+                        }
+                        
+                    }
+                    else
+                    {
+                        if (cpos == 0)
+                        {
+                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT", false);
+                        }
+                        else
+                        {
+                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT: " + certainties[cpos] + "% CERTAINTY", false);
+                        }
+                    }
+                    pos++;
+                }
+                cpos++;
+            }
+
+            //randomize
+            for(int x = alertMessages.Length-1;x >= 0; x--)
+            {
+                int randIndex = getrandom.Next(x + 1);
+                AlertMessage temp = alertMessages[randIndex];
+                alertMessages[randIndex] = alertMessages[x];
+                alertMessages[x] = temp;
+            }
+        }
+
+        //generates random number between min and max-1 (inclusive)
         public static int GetRandomNumber(int min, int max)
         {
             lock (getrandom) // synchronize
@@ -393,6 +457,9 @@ namespace Pilot_Study
             }
         }
 
+        void generateMissleAlerts()
+        {
 
+        }
     }
 }
