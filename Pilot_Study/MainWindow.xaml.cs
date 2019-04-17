@@ -40,12 +40,14 @@ namespace Pilot_Study
         int userWrong;
         int systemRight;
         int systemWrong;
-
-        
-
-        bool interrupted;
-        private static readonly Random getrandom = new Random();
         int angle;
+        
+        bool interrupted;
+        bool isTrial = false;
+        bool alertActive = false;
+
+        private static readonly Random getrandom = new Random();
+       
         private int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
         private int screenHeight = (int)System.Windows.SystemParameters.PrimaryScreenHeight;
 
@@ -54,12 +56,17 @@ namespace Pilot_Study
         string currentTime = string.Empty;
 
         //images
-        Image airspeed, attitude_outer, attitude_inner, red_arrow, altimeter;
+        Image airspeed, attitude_outer, attitude_inner, red_arrow, altimeter, sky;
+        Rectangle meterPanel, panelBorder;
+
+        //buttons
+        Button startBtn, trainBtn;
 
         //used to rotate image
         Storyboard sb;
 
-        DoubleAnimation [] rotations = new DoubleAnimation[8];
+        //store rotation
+        DoubleAnimation [] rotations = new DoubleAnimation[2];
         DoubleAnimation prevRotation;
 
         public MainWindow()
@@ -111,7 +118,6 @@ namespace Pilot_Study
             red_arrow.Width = 400;
             red_arrow.Height = 400;
 
-
             altimeter = new Image();
             BitmapImage bi5 = new BitmapImage();
             bi5.BeginInit();
@@ -121,22 +127,43 @@ namespace Pilot_Study
             altimeter.Width = 400;
             altimeter.Height = 400;
 
+            sky = new Image();
+            BitmapImage bi6 = new BitmapImage();
+            bi6.BeginInit();
+            bi6.UriSource = new Uri("C:/Users/colli/source/repos/PSI/PSI/PSI/Pics/clouds.jpg", UriKind.RelativeOrAbsolute);
+            bi6.EndInit();
+            sky.Source = bi6;
+            sky.Width = screenWidth;
+            sky.Height = screenHeight/2;
+            sky.Stretch = Stretch.Fill;
+
+
             //create meterPanel
-            Rectangle meterPanel = new Rectangle();
             SolidColorBrush greyBrush = new SolidColorBrush();
+            meterPanel = new Rectangle();
             greyBrush.Color = Colors.Gray;
             meterPanel.Fill = greyBrush;
             meterPanel.Height = screenHeight/2;
             meterPanel.Width = screenWidth;
             Canvas.SetTop(meterPanel, screenHeight / 2);
+
+            SolidColorBrush blackBrush = new SolidColorBrush();
+            panelBorder = new Rectangle();
+            blackBrush.Color = Colors.Black;
+            panelBorder.Fill = blackBrush;
+            panelBorder.Height = 5;
+            panelBorder.Width = screenWidth;
+            Canvas.SetTop(panelBorder, screenHeight / 2);
             
             //add images to canvas
             canvas.Children.Add(meterPanel);
+            canvas.Children.Add(panelBorder);
             canvas.Children.Add(airspeed);
             canvas.Children.Add(attitude_inner);
             canvas.Children.Add(attitude_outer);
             canvas.Children.Add(red_arrow);
             canvas.Children.Add(altimeter);
+            canvas.Children.Add(sky);
 
             //set locations of meters
             Canvas.SetTop(airspeed, screenHeight - airspeed.Height-100);
@@ -157,8 +184,7 @@ namespace Pilot_Study
             //create timer
             dt.Tick += new EventHandler(dt_Tick);
             dt.Interval = new TimeSpan(0, 0, 0, 0, 1);
-            dt.Start();
-            stopWatch.Start();
+            
 
             sb = new Storyboard();
 
@@ -166,70 +192,94 @@ namespace Pilot_Study
 
 
             //create default rotations
-            DoubleAnimation rotate_0_10 = new DoubleAnimation()
+            DoubleAnimation rotate_90 = new DoubleAnimation()
             {
                 From = 0,
                 To = 90,
                 Duration = sb.Duration
             };
-            DoubleAnimation rotate_0_20 = new DoubleAnimation()
+            DoubleAnimation rotate_90_n = new DoubleAnimation()
             {
                 From = 0,
                 To = -90,
                 Duration = sb.Duration
             };
-            DoubleAnimation rotate_0_30 = new DoubleAnimation()
-            {
-                From = 0,
-                To = 30,
-                Duration = sb.Duration
-            };
-            DoubleAnimation rotate_0_60 = new DoubleAnimation()
-            {
-                From = 0,
-                To = 60,
-                Duration = sb.Duration
-            };
-            DoubleAnimation rotate_0_10_n = new DoubleAnimation()
-            {
-                From = 0,
-                To = -10,
-                Duration = sb.Duration
-            };
-            DoubleAnimation rotate_0_20_n = new DoubleAnimation()
-            {
-                From = 0,
-                To = -20,
-                Duration = sb.Duration
-            };
-            DoubleAnimation rotate_0_30_n = new DoubleAnimation()
-            {
-                From = 0,
-                To = -30,
-                Duration = sb.Duration
-            };
-            DoubleAnimation rotate_0_60_n = new DoubleAnimation()
-            {
-                From = 0,
-                To = -60,
-                Duration = sb.Duration
-            };
+
 
             //fill array with default roatations
-            rotations[0] = rotate_0_10;
-            rotations[1] = rotate_0_20;
-            rotations[2] = rotate_0_30;
-            rotations[3] = rotate_0_60;
-            rotations[4] = rotate_0_10_n;
-            rotations[5] = rotate_0_20_n;
-            rotations[6] = rotate_0_30_n;
-            rotations[7] = rotate_0_60_n;
+            rotations[0] = rotate_90;
+            rotations[1] = rotate_90_n;
+ 
 
             Resources.Add("Storyboard", sb);
        
             //handle key presses
             this.KeyDown += new KeyEventHandler(MainWindow_KeyDown);
 
+            
+            //set all elements invisible
+            meterPanel.Visibility = Visibility.Hidden;
+            panelBorder.Visibility = Visibility.Hidden;
+            airspeed.Visibility = Visibility.Hidden;
+            attitude_outer.Visibility = Visibility.Hidden;
+            attitude_inner.Visibility = Visibility.Hidden;
+            altimeter.Visibility = Visibility.Hidden;
+            sky.Visibility = Visibility.Hidden;
+            red_arrow.Visibility = Visibility.Hidden;
+
+            startBtn = new Button()
+            {
+                Content = "Start Trial",
+                Width = 200,
+                Height = 100,
+                FontSize = 20,
+                FontWeight = FontWeights.Bold
+            };
+            startBtn.Click += startBtn_Click;
+            canvas.Children.Add(startBtn);
+
+            trainBtn = new Button()
+            {
+                Content = "Train",
+                Width = 200,
+                Height = 100,
+                FontSize = 20,
+                FontWeight = FontWeights.Bold
+            };
+            trainBtn.Click += trainBtn_Click;
+            canvas.Children.Add(trainBtn);
+
+            Canvas.SetTop(startBtn, screenHeight / 2);
+            Canvas.SetLeft(startBtn, screenWidth / 2 - startBtn.Width/2);
+            Canvas.SetTop(trainBtn, screenHeight / 2 - trainBtn.Height*2);
+            Canvas.SetLeft(trainBtn, screenWidth / 2 - trainBtn.Width/2);
+        }
+
+        private void startBtn_Click(object sender, RoutedEventArgs e)
+        {
+            isTrial = true;
+            //start timing
+            dt.Start();
+            stopWatch.Start();
+
+            //hide startBtn & trainBtn
+            startBtn.Visibility = Visibility.Hidden;
+            trainBtn.Visibility = Visibility.Hidden;
+
+            //make everything visible
+            meterPanel.Visibility = Visibility.Visible;
+            panelBorder.Visibility = Visibility.Visible;
+            airspeed.Visibility = Visibility.Visible;
+            attitude_outer.Visibility = Visibility.Visible;
+            attitude_inner.Visibility = Visibility.Visible;
+            altimeter.Visibility = Visibility.Visible;
+            sky.Visibility = Visibility.Visible;
+            red_arrow.Visibility = Visibility.Visible;
+        }
+
+        private void trainBtn_Click(object sender, RoutedEventArgs e)
+        {
+            debugger2.Text = "train clicked";
         }
 
         void MainWindow_KeyDown(object sender, KeyEventArgs e)
@@ -275,6 +325,11 @@ namespace Pilot_Study
 
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
 
+                if (isTrial)
+                {
+                    //record the keypress
+                }
+
                 //set new duration so it isnt too slow when angle is smaller
                 Duration newDuration;
                 if (currentAngle.Angle < 0 && currentAngle.Angle > -45)
@@ -316,6 +371,7 @@ namespace Pilot_Study
 
             TimeSpan ts = stopWatch.Elapsed;
             currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
+
             if(ts.Milliseconds % 2 == 0 && !interrupted)
             {
                 interrupted = true;
@@ -324,6 +380,7 @@ namespace Pilot_Study
                 Storyboard.SetTargetProperty(rotations[index], new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
                 sb.Children.Add(rotations[index]);
                 ((Storyboard)Resources["Storyboard"]).Begin();
+    
             }
         }
 
