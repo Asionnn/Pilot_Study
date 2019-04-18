@@ -32,6 +32,7 @@ namespace Pilot_Study
         //user does not press a key at all, assign answer as ? 2 seconds before next alert
         //capture angle when choice is made
         //use txt files instead of sql tables now
+        //sound
 
 
     
@@ -70,21 +71,44 @@ namespace Pilot_Study
         DoubleAnimation [] rotations = new DoubleAnimation[2];
         DoubleAnimation prevRotation;
 
+        //stores all alerts
         AlertMessage[] alertMessages = new AlertMessage[40];
+
+        //stores time(in seconds) the alerts should be played
+        //also doubles as the start time
+        int [] alertTimes = new int[40];
+        int alertPos;
+
+        //stores the end time of the response
+        int[] endTimes = new int[40];
+
+        //stores the response time
+        int[] reponseTimes = new int[40];
+
+        //stores choice made
+        char[] keyPressed = new char[40];
+
+        //stores banking angles
+        //FIND A WAY TO DYNAMICALLY STORE ANGLES
+
+        //create labels
+        Label alertMessage;
+        Label sRight, sWrong, uRight, uWrong;
 
        
 
         public MainWindow()
         {
+            WindowState = WindowState.Maximized;
+            InitializeComponent();
 
             isTrial = false;
             alertActive = false;
             interrupted = false;
             startDelay = false;
 
-            WindowState = WindowState.Maximized;
-            InitializeComponent();
-            
+            alertPos = 0;
+ 
             //create images
             airspeed = new Image();
             BitmapImage bi = new BitmapImage();
@@ -212,6 +236,45 @@ namespace Pilot_Study
                 Duration = sb.Duration
             };
 
+            //creat alert message label and set location
+            alertMessage = new Label();
+            alertMessage.Width = screenWidth;
+            alertMessage.Foreground = Brushes.Red;
+            alertMessage.FontSize = 40;
+            alertMessage.FontWeight = FontWeights.Bold;
+            alertMessage.FontFamily = new FontFamily("Verdana");
+            alertMessage.HorizontalContentAlignment = HorizontalAlignment.Center;
+            canvas.Children.Add(alertMessage);
+            Canvas.SetTop(alertMessage, screenHeight / 2 - 100);
+
+            //create right/wrong labels
+            sRight = new Label();
+            sRight.Content = "#System Right: 0";
+            sRight.FontWeight = FontWeights.Bold;
+            Canvas.SetLeft(sRight, 0);
+            sWrong = new Label();
+            sWrong.Content = "#System Wrong: 0";
+            sWrong.FontWeight = FontWeights.Bold;
+            Canvas.SetLeft(sWrong, 0);
+            Canvas.SetTop(sWrong, 50);
+            uRight = new Label();
+            uRight.Content = "#User Right: 0";
+            uRight.FontWeight = FontWeights.Bold;
+            Canvas.SetLeft(uRight, 0);
+            Canvas.SetTop(uRight, 100);
+            uWrong = new Label();
+            uWrong.Content = "#User Wrong: 0";
+            uWrong.FontWeight = FontWeights.Bold;
+            Canvas.SetLeft(uWrong, 0);
+            Canvas.SetTop(uWrong, 150);
+
+            canvas.Children.Add(sRight);
+            canvas.Children.Add(sWrong);
+            canvas.Children.Add(uRight);
+            canvas.Children.Add(uWrong);
+
+
+
 
             //fill array with default roatations
             rotations[0] = rotate_90;
@@ -233,6 +296,11 @@ namespace Pilot_Study
             altimeter.Visibility = Visibility.Hidden;
             sky.Visibility = Visibility.Hidden;
             red_arrow.Visibility = Visibility.Hidden;
+            alertMessage.Visibility = Visibility.Hidden;
+            sRight.Visibility = Visibility.Hidden;
+            sWrong.Visibility = Visibility.Hidden;
+            uRight.Visibility = Visibility.Hidden;
+            uWrong.Visibility = Visibility.Hidden;
 
             startBtn = new Button()
             {
@@ -262,6 +330,7 @@ namespace Pilot_Study
             Canvas.SetLeft(trainBtn, screenWidth / 2 - trainBtn.Width/2);
 
             initMessages();
+            generateAlertTimes();
         }
 
         private void startBtn_Click(object sender, RoutedEventArgs e)
@@ -284,6 +353,11 @@ namespace Pilot_Study
             altimeter.Visibility = Visibility.Visible;
             sky.Visibility = Visibility.Visible;
             red_arrow.Visibility = Visibility.Visible;
+            sRight.Visibility = Visibility.Visible;
+            sWrong.Visibility = Visibility.Visible;
+            uRight.Visibility = Visibility.Visible;
+            uWrong.Visibility = Visibility.Visible;
+
         }
 
         private void trainBtn_Click(object sender, RoutedEventArgs e)
@@ -334,11 +408,6 @@ namespace Pilot_Study
 
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
 
-                if (isTrial)
-                {
-                    //record the keypress
-                }
-
                 //set new duration so it isnt too slow when angle is smaller
                 Duration newDuration;
                 if (currentAngle.Angle < 0 && currentAngle.Angle > -45)
@@ -364,13 +433,90 @@ namespace Pilot_Study
                     sb.Children.Add(rotateBack);
                     ((Storyboard)Resources["Storyboard"]).Begin();
                 }
-                
                
+            }
+            else if(e.Key == Key.A && alertActive)
+            {
+                //accept
+                if (alertMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                    userRight++;
+                }
+                else if (!alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                    userWrong++;
+                }
+
+                sRight.Content = "#System Right: " + systemRight;
+                sWrong.Content = "#System Wrong: " + systemWrong;
+                uRight.Content = "#User Right: " + userRight;
+                uWrong.Content = "#User Wrong: " + userWrong;
+                RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+                TimeSpan ts = stopWatch.Elapsed;
+                keyPressed[alertPos] = 'A';
+                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                alertMessage.Visibility = Visibility.Hidden;
+                alertPos++;
+                alertActive = false;
+
+
+            }
+            else if(e.Key == Key.S && alertActive)
+            {
+                //deny
+                if (alertMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                    userWrong++;
+                }
+                else if (!alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                    userRight++;
+                }
+                sRight.Content = "#System Right: " + systemRight;
+                sWrong.Content = "#System Wrong: " + systemWrong;
+                uRight.Content = "#User Right: " + userRight;
+                uWrong.Content = "#User Wrong: " + userWrong;
+                RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+                TimeSpan ts = stopWatch.Elapsed;
+                keyPressed[alertPos] = 'S';
+                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                alertMessage.Visibility = Visibility.Hidden;
+                alertPos++;
+                alertActive = false;
+
+            }
+            else if(e.Key == Key.D && alertActive)
+            {
+                //unsure
+                if (alertMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                }
+                else if (!alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                }
+                sRight.Content = "#System Right: " + systemRight;
+                sWrong.Content = "#System Wrong: " + systemWrong;
+                uRight.Content = "#User Right: " + userRight;
+                uWrong.Content = "#User Wrong: " + userWrong;
+                RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
+                TimeSpan ts = stopWatch.Elapsed;
+                keyPressed[alertPos] = 'D';
+                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                alertMessage.Visibility = Visibility.Hidden;
+                alertPos++;
+                alertActive = false;
             }
         }
 
         void dt_Tick(object sender, EventArgs e)
         {
+            int secondsPassed;
             RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
             
             if(currentAngle.Angle == 0)
@@ -380,6 +526,7 @@ namespace Pilot_Study
 
             TimeSpan ts = stopWatch.Elapsed;
             currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
+            secondsPassed = ts.Minutes * 60 + ts.Seconds;
 
             if(ts.Seconds > 1)
             {
@@ -394,8 +541,24 @@ namespace Pilot_Study
                 Storyboard.SetTargetProperty(rotations[index], new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
                 sb.Children.Add(rotations[index]);
                 ((Storyboard)Resources["Storyboard"]).Begin();
-    
             }
+
+            if(secondsPassed == alertTimes[alertPos])
+            {
+                alertActive = true;
+                alertMessage.Content = alertMessages[alertPos].getMessage();
+                alertMessage.Visibility = Visibility.Visible;
+            }
+
+            if(keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 ||alertTimes[alertPos+1] - secondsPassed == 5))
+            {
+                keyPressed[alertPos] = 'D';
+                alertPos++;
+                alertActive = false;
+                alertMessage.Visibility = Visibility.Hidden;
+            }
+
+            
         }
 
 
@@ -447,6 +610,21 @@ namespace Pilot_Study
                 alertMessages[x] = temp;
             }
         }
+
+        //generate the times the alerts are played
+       public void generateAlertTimes()
+       {
+            int totalTime = 10;
+            for(int x = 0; x < 40; x++)
+            {
+                int offset = GetRandomNumber(1, 6);
+                totalTime += offset;
+
+                alertTimes[x] = totalTime;
+                totalTime += 28;
+
+            }
+       }
 
         //generates random number between min and max-1 (inclusive)
         public static int GetRandomNumber(int min, int max)
