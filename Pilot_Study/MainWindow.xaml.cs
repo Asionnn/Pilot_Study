@@ -552,6 +552,20 @@ namespace Pilot_Study
 
             if(keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 ||alertTimes[alertPos+1] - secondsPassed == 5))
             {
+                if (alertMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                }
+                else if (!alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                }
+
+                sRight.Content = "#System Right: " + systemRight;
+                sWrong.Content = "#System Wrong: " + systemWrong;
+                uRight.Content = "#User Right: " + userRight;
+                uWrong.Content = "#User Wrong: " + userWrong;
+
                 keyPressed[alertPos] = 'D';
                 alertPos++;
                 alertActive = false;
@@ -635,9 +649,5 @@ namespace Pilot_Study
             }
         }
 
-        void generateMissleAlerts()
-        {
-
-        }
     }
 }
