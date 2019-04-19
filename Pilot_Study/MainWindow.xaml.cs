@@ -17,6 +17,7 @@ using System.Threading;
 using System.Windows.Threading;
 using System.Diagnostics;
 using System.Windows.Media.Animation;
+using Microsoft.Win32;
 
 namespace Pilot_Study
 {
@@ -26,30 +27,33 @@ namespace Pilot_Study
     /// 
 
 
-        /*Notes/TODO*/
-        //2 per min 20 seconds in between
-        //create algorithm to assign messages to certain times
-        //user does not press a key at all, assign answer as ? 2 seconds before next alert
-        //capture angle when choice is made
-        //use txt files instead of sql tables now
-        //sound
+    /*Notes/TODO*/
+    //2 per min 20 seconds in between
+    //create algorithm to assign messages to certain times
+    //user does not press a key at all, assign answer as ? 2 seconds before next alert
+    //capture angle when choice is made
+    //sound
 
 
-    
+
+
+
+
     public partial class MainWindow : Window
     {
         int userRight;
         int userWrong;
         int systemRight;
         int systemWrong;
-        
+        int blinkCount;
+
         bool interrupted;
         bool isTrial;
         bool alertActive;
         bool startDelay;
 
         private static readonly Random getrandom = new Random();
-       
+
         private int screenWidth = (int)System.Windows.SystemParameters.PrimaryScreenWidth;
         private int screenHeight = (int)System.Windows.SystemParameters.PrimaryScreenHeight;
 
@@ -68,7 +72,7 @@ namespace Pilot_Study
         Storyboard sb;
 
         //store rotation
-        DoubleAnimation [] rotations = new DoubleAnimation[2];
+        DoubleAnimation[] rotations = new DoubleAnimation[2];
         DoubleAnimation prevRotation;
 
         //stores all alerts
@@ -76,14 +80,14 @@ namespace Pilot_Study
 
         //stores time(in seconds) the alerts should be played
         //also doubles as the start time
-        int [] alertTimes = new int[40];
+        int[] alertTimes = new int[40];
         int alertPos;
 
         //stores the end time of the response
         int[] endTimes = new int[40];
 
         //stores the response time
-        int[] reponseTimes = new int[40];
+        int[] responseTimes = new int[40];
 
         //stores choice made
         char[] keyPressed = new char[40];
@@ -95,7 +99,17 @@ namespace Pilot_Study
         Label alertMessage;
         Label sRight, sWrong, uRight, uWrong;
 
-       
+
+        ColorAnimation Blinker;
+
+        //blinker
+        Label topPanel;
+
+        //sounds
+        private MediaPlayer background = new MediaPlayer();
+        private MediaPlayer alert = new MediaPlayer();
+
+
 
         public MainWindow()
         {
@@ -108,7 +122,8 @@ namespace Pilot_Study
             startDelay = false;
 
             alertPos = 0;
- 
+            blinkCount = 0;
+
             //create images
             airspeed = new Image();
             BitmapImage bi = new BitmapImage();
@@ -128,8 +143,9 @@ namespace Pilot_Study
             attitude_outer.Width = 400;
             attitude_outer.Height = 400;
 
-            attitude_inner = new Image() {
-                RenderTransform = new RotateTransform(0,200,200)
+            attitude_inner = new Image()
+            {
+                RenderTransform = new RotateTransform(0, 200, 200)
             };
             BitmapImage bi3 = new BitmapImage();
             bi3.BeginInit();
@@ -138,7 +154,7 @@ namespace Pilot_Study
             attitude_inner.Source = bi3;
             attitude_inner.Width = 400;
             attitude_inner.Height = 400;
-    
+
 
             red_arrow = new Image();
             BitmapImage bi4 = new BitmapImage();
@@ -165,7 +181,7 @@ namespace Pilot_Study
             bi6.EndInit();
             sky.Source = bi6;
             sky.Width = screenWidth;
-            sky.Height = screenHeight/2;
+            sky.Height = screenHeight / 2;
             sky.Stretch = Stretch.Fill;
 
 
@@ -174,7 +190,7 @@ namespace Pilot_Study
             meterPanel = new Rectangle();
             greyBrush.Color = Colors.Gray;
             meterPanel.Fill = greyBrush;
-            meterPanel.Height = screenHeight/2;
+            meterPanel.Height = screenHeight / 2;
             meterPanel.Width = screenWidth;
             Canvas.SetTop(meterPanel, screenHeight / 2);
 
@@ -185,7 +201,16 @@ namespace Pilot_Study
             panelBorder.Height = 5;
             panelBorder.Width = screenWidth;
             Canvas.SetTop(panelBorder, screenHeight / 2);
-            
+
+            topPanel = new Label();
+            topPanel.Width = screenWidth;
+            topPanel.Height = screenHeight / 2;
+            topPanel.Background = new SolidColorBrush();
+
+
+
+            Canvas.SetTop(topPanel, 0);
+
             //add images to canvas
             canvas.Children.Add(meterPanel);
             canvas.Children.Add(panelBorder);
@@ -195,13 +220,13 @@ namespace Pilot_Study
             canvas.Children.Add(red_arrow);
             canvas.Children.Add(altimeter);
             canvas.Children.Add(sky);
-
+            canvas.Children.Add(topPanel);
             //set locations of meters
-            Canvas.SetTop(airspeed, screenHeight - airspeed.Height-100);
+            Canvas.SetTop(airspeed, screenHeight - airspeed.Height - 100);
             Canvas.SetLeft(airspeed, 10);
 
             Canvas.SetTop(attitude_inner, screenHeight - attitude_inner.Height - 100);
-            Canvas.SetLeft(attitude_inner, screenWidth / 2 - attitude_inner.Width/2);
+            Canvas.SetLeft(attitude_inner, screenWidth / 2 - attitude_inner.Width / 2);
 
             Canvas.SetTop(red_arrow, screenHeight - red_arrow.Height - 100);
             Canvas.SetLeft(red_arrow, screenWidth / 2 - red_arrow.Width / 2);
@@ -215,7 +240,7 @@ namespace Pilot_Study
             //create timer
             dt.Tick += new EventHandler(dt_Tick);
             dt.Interval = new TimeSpan(0, 0, 0, 0, 1);
-            
+
 
             sb = new Storyboard();
 
@@ -239,7 +264,8 @@ namespace Pilot_Study
             //creat alert message label and set location
             alertMessage = new Label();
             alertMessage.Width = screenWidth;
-            alertMessage.Foreground = Brushes.Red;
+            alertMessage.Foreground = Brushes.Black;
+            alertMessage.Background = Brushes.Gray;
             alertMessage.FontSize = 40;
             alertMessage.FontWeight = FontWeights.Bold;
             alertMessage.FontFamily = new FontFamily("Verdana");
@@ -249,24 +275,35 @@ namespace Pilot_Study
 
             //create right/wrong labels
             sRight = new Label();
-            sRight.Content = "#System Right: 0";
+            sRight.Content = "# System Got Right: 0";
             sRight.FontWeight = FontWeights.Bold;
+            sRight.FontSize = 18;
+            sRight.Background = Brushes.Gray;
             Canvas.SetLeft(sRight, 0);
+
             sWrong = new Label();
-            sWrong.Content = "#System Wrong: 0";
+            sWrong.Content = "#System Got Wrong: 0";
             sWrong.FontWeight = FontWeights.Bold;
+            sWrong.FontSize = 18;
+            sWrong.Background = Brushes.Gray;
             Canvas.SetLeft(sWrong, 0);
-            Canvas.SetTop(sWrong, 50);
+            Canvas.SetTop(sWrong, 100);
+
             uRight = new Label();
-            uRight.Content = "#User Right: 0";
+            uRight.Content = "# You Got Right: 0";
             uRight.FontWeight = FontWeights.Bold;
+            uRight.FontSize = 18;
+            uRight.Background = Brushes.Yellow;
             Canvas.SetLeft(uRight, 0);
-            Canvas.SetTop(uRight, 100);
+            Canvas.SetTop(uRight, 200);
+
             uWrong = new Label();
-            uWrong.Content = "#User Wrong: 0";
+            uWrong.Content = "# You Got Wrong: 0";
             uWrong.FontWeight = FontWeights.Bold;
+            uWrong.FontSize = 18;
+            uWrong.Background = Brushes.Yellow;
             Canvas.SetLeft(uWrong, 0);
-            Canvas.SetTop(uWrong, 150);
+            Canvas.SetTop(uWrong, 300);
 
             canvas.Children.Add(sRight);
             canvas.Children.Add(sWrong);
@@ -279,14 +316,14 @@ namespace Pilot_Study
             //fill array with default roatations
             rotations[0] = rotate_90;
             rotations[1] = rotate_90_n;
- 
+
 
             Resources.Add("Storyboard", sb);
-       
+
             //handle key presses
             this.KeyDown += new KeyEventHandler(MainWindow_KeyDown);
 
-            
+
             //set all elements invisible
             meterPanel.Visibility = Visibility.Hidden;
             panelBorder.Visibility = Visibility.Hidden;
@@ -325,16 +362,30 @@ namespace Pilot_Study
             canvas.Children.Add(trainBtn);
 
             Canvas.SetTop(startBtn, screenHeight / 2);
-            Canvas.SetLeft(startBtn, screenWidth / 2 - startBtn.Width/2);
-            Canvas.SetTop(trainBtn, screenHeight / 2 - trainBtn.Height*2);
-            Canvas.SetLeft(trainBtn, screenWidth / 2 - trainBtn.Width/2);
+            Canvas.SetLeft(startBtn, screenWidth / 2 - startBtn.Width / 2);
+            Canvas.SetTop(trainBtn, screenHeight / 2 - trainBtn.Height * 2);
+            Canvas.SetLeft(trainBtn, screenWidth / 2 - trainBtn.Width / 2);
 
             initMessages();
             generateAlertTimes();
+
+
+
+            Blinker = new ColorAnimation();
+            Blinker.Duration = new Duration(TimeSpan.FromMilliseconds(1000));
+            Blinker.Completed += handle_complete;
+
+            background.Open(new Uri("C:/Users/colli/Documents/airplane.wav"));
+            alert.Open(new Uri("C:/Users/colli/Documents/alert.wav"));
+
+
+
         }
 
         private void startBtn_Click(object sender, RoutedEventArgs e)
         {
+
+            background.Play();
             isTrial = true;
             //start timing
             dt.Start();
@@ -373,10 +424,10 @@ namespace Pilot_Study
                 interrupted = true;
 
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
-                
+
                 //set new duration so it isnt too slow when angle is smaller
                 Duration newDuration;
-                if(currentAngle.Angle > 0 && currentAngle.Angle < 45)
+                if (currentAngle.Angle > 0 && currentAngle.Angle < 45)
                 {
                     newDuration = new Duration(TimeSpan.FromSeconds(1));
                 }
@@ -390,18 +441,18 @@ namespace Pilot_Study
                     To = 0,
                     Duration = newDuration
                 };
-          
-                if(currentAngle.Angle > 0)
+
+                if (currentAngle.Angle > 0)
                 {
                     Storyboard.SetTarget(rotateBack, attitude_inner);
                     Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
                     sb.Children.Add(rotateBack);
                     ((Storyboard)Resources["Storyboard"]).Begin();
-                
+
                 }
-                
+
             }
-            else if(e.Key == Key.Left)
+            else if (e.Key == Key.Left)
             {
                 //balance meter to left
                 interrupted = true;
@@ -433,107 +484,140 @@ namespace Pilot_Study
                     sb.Children.Add(rotateBack);
                     ((Storyboard)Resources["Storyboard"]).Begin();
                 }
-               
+
             }
-            else if(e.Key == Key.A && alertActive)
+            else if (e.Key == Key.A && alertActive)
             {
                 //accept
+
+                alert.Stop();
                 if (alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
                     userRight++;
+
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+
                 }
                 else if (!alertMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
                     userWrong++;
+
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
 
-                sRight.Content = "#System Right: " + systemRight;
-                sWrong.Content = "#System Wrong: " + systemWrong;
-                uRight.Content = "#User Right: " + userRight;
-                uWrong.Content = "#User Wrong: " + userWrong;
+                sRight.Content = "# System Got Right: " + systemRight;
+                sWrong.Content = "# System Got Wrong: " + systemWrong;
+                uRight.Content = "# You Got Right: " + userRight;
+                uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
                 keyPressed[alertPos] = 'A';
                 endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
 
 
             }
-            else if(e.Key == Key.S && alertActive)
+            else if (e.Key == Key.S && alertActive)
             {
                 //deny
+
+                alert.Stop();
                 if (alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
                     userWrong++;
+
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
                 else if (!alertMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
                     userRight++;
+
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
-                sRight.Content = "#System Right: " + systemRight;
-                sWrong.Content = "#System Wrong: " + systemWrong;
-                uRight.Content = "#User Right: " + userRight;
-                uWrong.Content = "#User Wrong: " + userWrong;
+                sRight.Content = "# System Got Right: " + systemRight;
+                sWrong.Content = "# System Got Wrong: " + systemWrong;
+                uRight.Content = "# You Got Right: " + userRight;
+                uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
                 keyPressed[alertPos] = 'S';
                 endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
 
             }
-            else if(e.Key == Key.D && alertActive)
+            else if (e.Key == Key.D && alertActive)
             {
                 //unsure
+
+                alert.Stop();
                 if (alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
                 else if (!alertMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
-                sRight.Content = "#System Right: " + systemRight;
-                sWrong.Content = "#System Wrong: " + systemWrong;
-                uRight.Content = "#User Right: " + userRight;
-                uWrong.Content = "#User Wrong: " + userWrong;
+                sRight.Content = "# System Got Right: " + systemRight;
+                sWrong.Content = "# System Got Wrong: " + systemWrong;
+                uRight.Content = "# You Got Right: " + userRight;
+                uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
                 keyPressed[alertPos] = 'D';
                 endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
             }
         }
 
+        void handle_complete(object sender, EventArgs e)
+        {
+            topPanel.Background = new SolidColorBrush();
+        }
         void dt_Tick(object sender, EventArgs e)
         {
+
+
+
             int secondsPassed;
             RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
-            
-            if(currentAngle.Angle == 0)
+
+            if (currentAngle.Angle == 0)
             {
                 interrupted = false;
             }
 
             TimeSpan ts = stopWatch.Elapsed;
-            currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
+            currentTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}", ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
             secondsPassed = ts.Minutes * 60 + ts.Seconds;
 
-            if(ts.Seconds > 1)
+            if (ts.Seconds > 1)
             {
                 startDelay = true;
             }
 
-            if(startDelay && ts.Milliseconds % 1 == 0 && !interrupted)
+            if (startDelay && ts.Milliseconds % 1 == 0 && !interrupted)
             {
                 interrupted = true;
                 int index = GetRandomNumber(0, 2);
@@ -543,61 +627,68 @@ namespace Pilot_Study
                 ((Storyboard)Resources["Storyboard"]).Begin();
             }
 
-            if(secondsPassed == alertTimes[alertPos])
+            if (secondsPassed == alertTimes[alertPos])
             {
+                alert.Play();
                 alertActive = true;
                 alertMessage.Content = alertMessages[alertPos].getMessage();
                 alertMessage.Visibility = Visibility.Visible;
             }
 
-            if(keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 ||alertTimes[alertPos+1] - secondsPassed == 5))
+            if (keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 || alertTimes[alertPos + 1] - secondsPassed == 5))
             {
+                alert.Stop();
+
                 if (alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+
                 }
                 else if (!alertMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
 
-                sRight.Content = "#System Right: " + systemRight;
-                sWrong.Content = "#System Wrong: " + systemWrong;
-                uRight.Content = "#User Right: " + userRight;
-                uWrong.Content = "#User Wrong: " + userWrong;
+                sRight.Content = "# System Got Right: " + systemRight;
+                sWrong.Content = "# System Got Wrong: " + systemWrong;
+                uRight.Content = "# You Got Right: " + userRight;
+                uWrong.Content = "# You Got Wrong: " + userWrong;
 
-                keyPressed[alertPos] = 'D';
+                keyPressed[alertPos] = 'N';
                 alertPos++;
                 alertActive = false;
                 alertMessage.Visibility = Visibility.Hidden;
             }
 
-            
+
         }
 
-
-       //initializes all 40 messages and randomizes their positions
-       public void initMessages()
+        //initializes all 40 messages and randomizes their positions
+        public void initMessages()
         {
-            int[] certainties = { 0 ,30, 50, 80 };
+            int[] certainties = { 0, 30, 50, 80 };
             int pos = 0;
             int cpos = 0;
 
-            for(int x = 0; x < 4; x++)
+            for (int x = 0; x < 4; x++)
             {
-               for(int y = 0; y < 10; y++)
+                for (int y = 0; y < 10; y++)
                 {
-                    if(y <= 6)
+                    if (y <= 6)
                     {
-                        if(cpos == 0)
+                        if (cpos == 0)
                         {
                             alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT", true);
                         }
                         else
                         {
-                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT: "+ certainties[cpos] + "% CERTAINTY", true);
+                            alertMessages[pos] = new AlertMessage(certainties[cpos], "POSSIBLE THREAT: " + certainties[cpos] + "% CERTAINTY", true);
                         }
-                        
+
                     }
                     else
                     {
@@ -616,7 +707,7 @@ namespace Pilot_Study
             }
 
             //randomize
-            for(int x = alertMessages.Length-1;x >= 0; x--)
+            for (int x = alertMessages.Length - 1; x >= 0; x--)
             {
                 int randIndex = getrandom.Next(x + 1);
                 AlertMessage temp = alertMessages[randIndex];
@@ -626,10 +717,10 @@ namespace Pilot_Study
         }
 
         //generate the times the alerts are played
-       public void generateAlertTimes()
-       {
+        public void generateAlertTimes()
+        {
             int totalTime = 10;
-            for(int x = 0; x < 40; x++)
+            for (int x = 0; x < 40; x++)
             {
                 int offset = GetRandomNumber(1, 6);
                 totalTime += offset;
@@ -638,7 +729,7 @@ namespace Pilot_Study
                 totalTime += 28;
 
             }
-       }
+        }
 
         //generates random number between min and max-1 (inclusive)
         public static int GetRandomNumber(int min, int max)
