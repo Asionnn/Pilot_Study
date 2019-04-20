@@ -18,6 +18,7 @@ using System.Windows.Threading;
 using System.Diagnostics;
 using System.Windows.Media.Animation;
 using Microsoft.Win32;
+using System.IO;
 
 namespace Pilot_Study
 {
@@ -47,10 +48,13 @@ namespace Pilot_Study
         int systemWrong;
         int blinkCount;
 
+        int fileNo;
+
         bool interrupted;
         bool isTrial;
         bool alertActive;
         bool startDelay;
+        bool didPress;
 
         private static readonly Random getrandom = new Random();
 
@@ -77,10 +81,12 @@ namespace Pilot_Study
 
         //stores all alerts
         AlertMessage[] alertMessages = new AlertMessage[40];
+        AlertMessage[] trainMessages = new AlertMessage[3];
 
         //stores time(in seconds) the alerts should be played
         //also doubles as the start time
         int[] alertTimes = new int[40];
+        int[] trainTimes = new int[3];
         int alertPos;
 
         //stores the end time of the response
@@ -99,6 +105,10 @@ namespace Pilot_Study
         Label alertMessage;
         Label sRight, sWrong, uRight, uWrong;
 
+        //store banking angles
+
+        Stack<int> bankingAngles;
+
 
         ColorAnimation Blinker;
 
@@ -115,14 +125,28 @@ namespace Pilot_Study
         {
             WindowState = WindowState.Maximized;
             InitializeComponent();
+        
+            string [] text = File.ReadAllLines(@"C:/Users/colli/source/repos/Pilot_Study/Trials/Tracker.txt");
+      
 
             isTrial = false;
             alertActive = false;
             interrupted = false;
             startDelay = false;
+            didPress = false;
 
             alertPos = 0;
             blinkCount = 0;
+
+            bankingAngles = new Stack<int>();
+
+            trainTimes[0] = 15;
+            trainTimes[1] = 30;
+            trainTimes[2] = 45;
+
+            trainMessages[0] = new AlertMessage(30, "POSSIBLE THREAD: 30% CERTAINTY", true);
+            trainMessages[1] = new AlertMessage(50, "POSSIBLE THREAD: 50% CERTAINTY", false);
+            trainMessages[2] = new AlertMessage(80, "POSSIBLE THREAD: 80% CERTAINTY", true);
 
             //create images
             airspeed = new Image();
@@ -369,8 +393,6 @@ namespace Pilot_Study
             initMessages();
             generateAlertTimes();
 
-
-
             Blinker = new ColorAnimation();
             Blinker.Duration = new Duration(TimeSpan.FromMilliseconds(1000));
             Blinker.Completed += handle_complete;
@@ -378,8 +400,9 @@ namespace Pilot_Study
             background.Open(new Uri("C:/Users/colli/Documents/airplane.wav"));
             alert.Open(new Uri("C:/Users/colli/Documents/alert.wav"));
 
+            fileNo = Convert.ToInt32(text[text.Length-1]);
 
-
+           
         }
 
         private void startBtn_Click(object sender, RoutedEventArgs e)
@@ -413,7 +436,29 @@ namespace Pilot_Study
 
         private void trainBtn_Click(object sender, RoutedEventArgs e)
         {
-            debugger2.Text = "train clicked";
+            background.Play();
+            isTrial = false;
+            dt.Start();
+            stopWatch.Start();
+
+            //hide startBtn & trainBtn
+            startBtn.Visibility = Visibility.Hidden;
+            trainBtn.Visibility = Visibility.Hidden;
+
+            //make everything visible
+            meterPanel.Visibility = Visibility.Visible;
+            panelBorder.Visibility = Visibility.Visible;
+            airspeed.Visibility = Visibility.Visible;
+            attitude_outer.Visibility = Visibility.Visible;
+            attitude_inner.Visibility = Visibility.Visible;
+            altimeter.Visibility = Visibility.Visible;
+            sky.Visibility = Visibility.Visible;
+            red_arrow.Visibility = Visibility.Visible;
+            sRight.Visibility = Visibility.Visible;
+            sWrong.Visibility = Visibility.Visible;
+            uRight.Visibility = Visibility.Visible;
+            uWrong.Visibility = Visibility.Visible;
+
         }
 
         void MainWindow_KeyDown(object sender, KeyEventArgs e)
@@ -442,14 +487,27 @@ namespace Pilot_Study
                     Duration = newDuration
                 };
 
-                if (currentAngle.Angle > 0)
+                if(currentAngle.Angle == 0)
                 {
+                    didPress = false;
+                }
+
+                if (currentAngle.Angle > 0 && !didPress)
+                {
+                    didPress = true;
                     Storyboard.SetTarget(rotateBack, attitude_inner);
                     Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
                     sb.Children.Add(rotateBack);
                     ((Storyboard)Resources["Storyboard"]).Begin();
 
+                    if (alertActive && isTrial)
+                    {
+                        bankingAngles.Push((int)currentAngle.Angle);
+                    }
+
                 }
+                
+                
 
             }
             else if (e.Key == Key.Left)
@@ -476,14 +534,21 @@ namespace Pilot_Study
                     To = 0,
                     Duration = newDuration
                 };
-
-                if (currentAngle.Angle < 0)
+               
+                if (currentAngle.Angle < 0  && !didPress)
                 {
+                    didPress = true;
                     Storyboard.SetTarget(rotateBack, attitude_inner);
                     Storyboard.SetTargetProperty(rotateBack, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
                     sb.Children.Add(rotateBack);
                     ((Storyboard)Resources["Storyboard"]).Begin();
+                    if (alertActive && isTrial)
+                    {
+                        bankingAngles.Push((int)currentAngle.Angle);
+                    }
                 }
+                
+               
 
             }
             else if (e.Key == Key.A && alertActive)
@@ -491,7 +556,7 @@ namespace Pilot_Study
                 //accept
 
                 alert.Stop();
-                if (alertMessages[alertPos].isAccurate())
+                if (isTrial && alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
                     userRight++;
@@ -500,7 +565,25 @@ namespace Pilot_Study
                     topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
 
                 }
-                else if (!alertMessages[alertPos].isAccurate())
+                else if (isTrial && !alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                    userWrong++;
+
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+                }
+
+                if (!isTrial && trainMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                    userRight++;
+
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+
+                }
+                else if (!isTrial && !trainMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
                     userWrong++;
@@ -515,9 +598,13 @@ namespace Pilot_Study
                 uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
-                keyPressed[alertPos] = 'A';
-                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
-                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                if (isTrial)
+                {
+                    keyPressed[alertPos] = 'A';
+                    endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                    responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                }
+                
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
@@ -529,7 +616,7 @@ namespace Pilot_Study
                 //deny
 
                 alert.Stop();
-                if (alertMessages[alertPos].isAccurate())
+                if (isTrial && alertMessages[alertPos].isAccurate())
                 {
                     systemRight++;
                     userWrong++;
@@ -537,7 +624,23 @@ namespace Pilot_Study
                     Blinker.From = Colors.Red;
                     topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
                 }
-                else if (!alertMessages[alertPos].isAccurate())
+                else if (isTrial && !alertMessages[alertPos].isAccurate())
+                {
+                    systemWrong++;
+                    userRight++;
+
+                    Blinker.From = Colors.Green;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+                }
+                if (!isTrial && trainMessages[alertPos].isAccurate())
+                {
+                    systemRight++;
+                    userWrong++;
+
+                    Blinker.From = Colors.Red;
+                    topPanel.Background.BeginAnimation(SolidColorBrush.ColorProperty, Blinker);
+                }
+                else if (!isTrial && !trainMessages[alertPos].isAccurate())
                 {
                     systemWrong++;
                     userRight++;
@@ -551,9 +654,12 @@ namespace Pilot_Study
                 uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
-                keyPressed[alertPos] = 'S';
-                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
-                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                if (isTrial)
+                {
+                    keyPressed[alertPos] = 'S';
+                    endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                    responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                }
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
@@ -582,12 +688,16 @@ namespace Pilot_Study
                 uWrong.Content = "# You Got Wrong: " + userWrong;
                 RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
                 TimeSpan ts = stopWatch.Elapsed;
-                keyPressed[alertPos] = 'D';
-                endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
-                responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                if (isTrial)
+                {
+                    keyPressed[alertPos] = 'D';
+                    endTimes[alertPos] = ts.Minutes * 60 + ts.Seconds;
+                    responseTimes[alertPos] = endTimes[alertPos] - alertTimes[alertPos];
+                }
                 alertMessage.Visibility = Visibility.Hidden;
                 alertPos++;
                 alertActive = false;
+
             }
         }
 
@@ -598,7 +708,92 @@ namespace Pilot_Study
         void dt_Tick(object sender, EventArgs e)
         {
 
+            //reset everything
+            if (!isTrial && alertPos == 3)
+            {
+                meterPanel.Visibility = Visibility.Hidden;
+                panelBorder.Visibility = Visibility.Hidden;
+                airspeed.Visibility = Visibility.Hidden;
+                attitude_outer.Visibility = Visibility.Hidden;
+                attitude_inner.Visibility = Visibility.Hidden;
+                altimeter.Visibility = Visibility.Hidden;
+                sky.Visibility = Visibility.Hidden;
+                red_arrow.Visibility = Visibility.Hidden;
+                alertMessage.Visibility = Visibility.Hidden;
+                sRight.Visibility = Visibility.Hidden;
+                sWrong.Visibility = Visibility.Hidden;
+                uRight.Visibility = Visibility.Hidden;
+                uWrong.Visibility = Visibility.Hidden;
 
+                startBtn.Visibility = Visibility.Visible;
+                trainBtn.Visibility = Visibility.Visible;
+
+                alertPos = 0;
+
+                dt.Stop();
+                stopWatch.Start();
+                stopWatch.Reset();
+
+                background.Stop();
+
+                systemRight = 0;
+                systemWrong = 0;
+                userRight = 0;
+                userWrong = 0;
+
+                sRight.Content = "# System Got Right: 0";
+                sWrong.Content = "# System Got Wrong: 0";
+                uRight.Content = "# You Got Right: 0";
+                uWrong.Content = "# You Got Wrong: 0";
+            }
+            else if (isTrial && alertPos == 40)
+            {
+                meterPanel.Visibility = Visibility.Hidden;
+                panelBorder.Visibility = Visibility.Hidden;
+                airspeed.Visibility = Visibility.Hidden;
+                attitude_outer.Visibility = Visibility.Hidden;
+                attitude_inner.Visibility = Visibility.Hidden;
+                altimeter.Visibility = Visibility.Hidden;
+                sky.Visibility = Visibility.Hidden;
+                red_arrow.Visibility = Visibility.Hidden;
+                alertMessage.Visibility = Visibility.Hidden;
+                sRight.Visibility = Visibility.Hidden;
+                sWrong.Visibility = Visibility.Hidden;
+                uRight.Visibility = Visibility.Hidden;
+                uWrong.Visibility = Visibility.Hidden;
+
+                alertMessage.Visibility = Visibility.Visible;
+                alertMessage.Content = "Thank You for participating";
+
+                alertPos = 0;
+
+                dt.Stop();
+                stopWatch.Start();
+                stopWatch.Reset();
+
+                background.Stop();
+
+                systemRight = 0;
+                systemWrong = 0;
+                userRight = 0;
+                userWrong = 0;
+
+                sRight.Content = "# System Got Right: 0";
+                sWrong.Content = "# System Got Wrong: 0";
+                uRight.Content = "# You Got Right: 0";
+                uWrong.Content = "# You Got Wrong: 0";
+
+                string finalResult = "Trial #:          Start:          End:            Result:" + Environment.NewLine; 
+                for(int x = 0; x < 40; x++)
+                {
+                    finalResult += "" + x + "           " + alertTimes[x] + "           " + endTimes[x] + "            " + responseTimes[x] + Environment.NewLine;       
+                }
+                fileNo++;
+                File.WriteAllText(@"C:/Users/colli/source/repos/Pilot_Study/Trials/" + fileNo + ".txt",finalResult);
+                File.AppendAllText(@"C:/Users/colli/source/repos/Pilot_Study/Trials/Tracker.txt", fileNo + Environment.NewLine);
+
+
+            }
 
             int secondsPassed;
             RotateTransform currentAngle = attitude_inner.RenderTransform as RotateTransform;
@@ -616,7 +811,10 @@ namespace Pilot_Study
             {
                 startDelay = true;
             }
-
+            if(currentAngle.Angle == 0)
+            {
+                didPress = false;
+            }
             if (startDelay && ts.Milliseconds % 1 == 0 && !interrupted)
             {
                 interrupted = true;
@@ -627,15 +825,23 @@ namespace Pilot_Study
                 ((Storyboard)Resources["Storyboard"]).Begin();
             }
 
-            if (secondsPassed == alertTimes[alertPos])
+            if (isTrial && secondsPassed == alertTimes[alertPos])
             {
                 alert.Play();
                 alertActive = true;
                 alertMessage.Content = alertMessages[alertPos].getMessage();
                 alertMessage.Visibility = Visibility.Visible;
             }
+            else if (!isTrial && secondsPassed == trainTimes[alertPos])
+            {
+                alert.Play();
+                alertActive = true;
+                alertMessage.Content = trainMessages[alertPos].getMessage();
+                alertMessage.Visibility = Visibility.Visible;
+            }
+           
 
-            if (keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 || alertTimes[alertPos + 1] - secondsPassed == 5))
+            if (keyPressed[alertPos] == 0 && (alertTimes[39] - secondsPassed == 5 || alertTimes[alertPos+1] - secondsPassed == 5))
             {
                 alert.Stop();
 
@@ -658,7 +864,11 @@ namespace Pilot_Study
                 uRight.Content = "# You Got Right: " + userRight;
                 uWrong.Content = "# You Got Wrong: " + userWrong;
 
-                keyPressed[alertPos] = 'N';
+                if (isTrial)
+                {
+                    keyPressed[alertPos] = 'N';
+                }
+                
                 alertPos++;
                 alertActive = false;
                 alertMessage.Visibility = Visibility.Hidden;
