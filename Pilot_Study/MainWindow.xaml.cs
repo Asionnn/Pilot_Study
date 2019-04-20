@@ -126,7 +126,7 @@ namespace Pilot_Study
             WindowState = WindowState.Maximized;
             InitializeComponent();
         
-            string [] text = File.ReadAllLines(@"C:/Users/colli/source/repos/Pilot_Study/Trials/Tracker.txt");
+            string [] text = File.ReadAllLines(@"C:/Users/gris3003/Documents/Maya's_Pilot_Study/Tracker.txt");
       
 
             isTrial = false;
@@ -789,8 +789,8 @@ namespace Pilot_Study
                     finalResult += "" + x + "           " + alertTimes[x] + "           " + endTimes[x] + "            " + responseTimes[x] + Environment.NewLine;       
                 }
                 fileNo++;
-                File.WriteAllText(@"C:/Users/colli/source/repos/Pilot_Study/Trials/" + fileNo + ".txt",finalResult);
-                File.AppendAllText(@"C:/Users/colli/source/repos/Pilot_Study/Trials/Tracker.txt", fileNo + Environment.NewLine);
+                File.WriteAllText(@"C:/Users/gris3003/Documents/Maya's_Pilot_Study/Trials/" + fileNo + ".txt",finalResult);
+                File.AppendAllText(@"C:/Users/gris3003/Documents/Maya's_Pilot_Study/Tracker.txt", fileNo + Environment.NewLine);
 
 
             }
