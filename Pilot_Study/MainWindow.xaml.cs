@@ -783,7 +783,7 @@ namespace Pilot_Study
                 uRight.Content = "# You Got Right: 0";
                 uWrong.Content = "# You Got Wrong: 0";
 
-                string finalResult = "Trial #:          Start:          End:            Result:" + Environment.NewLine; 
+                string finalResult = "Trial #:          Start:          End:            Result:            " + Environment.NewLine; 
                 for(int x = 0; x < 40; x++)
                 {
                     finalResult += "" + x + "           " + alertTimes[x] + "           " + endTimes[x] + "            " + responseTimes[x] + Environment.NewLine;       
